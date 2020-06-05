@@ -18,24 +18,24 @@ logger = logging.getLogger(__name__)
 
 class VAE(pl.LightningModule):
 
-    def __init__(self, hparams, train_loader: DataLoader, val_loader: DataLoader, image_shape: int = 28):
+    def __init__(self, hparams, train_loader: DataLoader, val_loader: DataLoader, img_shape: int = 28):
         super(VAE, self).__init__()
         self.hparams = hparams
         self.train_loader = train_loader
         self.val_loader = val_loader
 
         # coordinates array
-        x0_grid, x1_grid = np.linspace(-1, 1, image_shape), np.linspace(1, -1, image_shape)
+        x0_grid, x1_grid = np.linspace(-1, 1, img_shape), np.linspace(1, -1, img_shape)
         x0, x1 = np.meshgrid(x0_grid, x1_grid)
         x_coord = np.stack([x0.ravel(), x1.ravel()], 1)
         self.x_coord = torch.from_numpy(x_coord).float()
+        self.x_coord = self.x_coord.cuda() if torch.cuda.is_available() else self.x_coord.cpu()
 
         # Define encoder-decoder
-        logger.info('# spatial-VAE with rotation inference')
-        self.p_net = SpatialGenerator(hparams.z_dim, hparams.hidden_dim, num_layers=hparams.num_layers)
+        self.p_net = SpatialGenerator(hparams.z_dim, hparams.hidden_dim, num_layers=hparams.num_layers)  # Decoder
         inf_dim = hparams.z_dim + 1
-        self.q_net = InferenceNetwork(image_shape * image_shape, inf_dim, hparams.hidden_dim,
-                                      num_layers=hparams.num_layers)
+        self.q_net = InferenceNetwork(img_shape * img_shape, inf_dim, hparams.hidden_dim,
+                                      num_layers=hparams.num_layers)  # Encoder
 
         # Store rest of the hyper-params
         self.theta_prior = hparams.theta_prior
@@ -124,7 +124,7 @@ class VAE(pl.LightningModule):
 
     def training_epoch_end(self, outputs):
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
-        logger.info('Training epoch end: loss=[{:.6f}]'.format(avg_loss.item()))
+        self.log_epoch('Train', avg_loss.item())
         return {'loss': avg_loss}
 
     def validation_step(self, batch, batch_idx):
@@ -154,12 +154,20 @@ class VAE(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss,
-                            'avg_elbo': torch.stack([x['elbo'] for x in outputs]).mean(),
-                            'avg_log_p_x_g_z': torch.stack([x['log_p_x_g_z'] for x in outputs]).mean(),
-                            'avg_kl_div': torch.stack([x['kl_div'] for x in outputs]).mean()
-                            }
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        logs = {'val_loss': avg_loss,
+                'avg_elbo': torch.stack([x['elbo'] for x in outputs]).mean(),
+                'avg_log_p_x_g_z': torch.stack([x['log_p_x_g_z'] for x in outputs]).mean(),
+                'avg_kl_div': torch.stack([x['kl_div'] for x in outputs]).mean()
+                }
+        self.log_epoch('Val', avg_loss.item(), logs['avg_elbo'].item(), logs['avg_log_p_x_g_z'].item(),
+                       logs['avg_kl_div'].item())
+        return {'val_loss': avg_loss, 'log': logs}
+
+    def log_epoch(self, print_type: str, loss=-1, elbo=-1, log_p_x_g_z=-1, kl_div=-1):
+        logger.info('')
+        logger.info('[{}/{}] \t {} \t [loss elbo log_p_x_g_z kl_div]=[{:.3f} {:.3f} {:.3f} {:.3f}]'.format(
+            self.trainer.current_epoch, self.trainer.max_nb_epochs - 1,
+            print_type, loss, elbo, log_p_x_g_z, kl_div))
 
 
 class ResidLinear(nn.Module):

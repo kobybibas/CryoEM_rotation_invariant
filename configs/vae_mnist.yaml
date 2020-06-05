@@ -7,6 +7,7 @@ dx_scale: 0.1       # Standard deviation of translation latent variables
 theta_prior: 0.7854 # pi/4, standard deviation on rotation prior
 lr: 1e-4            # Learning rate
 batch_size: 128     # Mini-batch size
+num_workers: 4      # Number of cpu workers in pytorch dataloader
 num_epochs: 200     # Number of training epochs
 fast_dev_run: false # runs 1 batch of train, test and val
 
