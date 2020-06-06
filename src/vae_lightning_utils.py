@@ -52,7 +52,7 @@ class VAE(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(list(self.p_net.parameters()) + list(self.q_net.parameters()), lr=self.lr)
 
-    def forward(self, x, y):
+    def forward(self, x, y, theta_input=None):
         """
         Inference
         :param x: The coordinates of the entire image [0,0],[0,0.01],...[1,1]
@@ -77,6 +77,9 @@ class VAE(pl.LightningModule):
         # In our case, we assume always rotation. equivalent to: if rotate is true in the original code
         theta = z[:, 0]  # z[0] is the rotation
         z = z[:, 1:]
+
+        if theta_input is not None:
+            theta = torch.tensor([theta_input]).float()
 
         # Calculate rotation matrix
         rot = theta.data.new(b, 2, 2).zero_()

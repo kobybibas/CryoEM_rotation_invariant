@@ -30,3 +30,14 @@ def get_dataset(dataset_name: str,
         raise ValueError('Dataset {} is not supported'.format(dataset_name))
 
     return train_loader, test_loader, image_shape
+
+
+def visualize_dataset(dataloader:torch.utils.data.DataLoader, dataset_index:int,image_shape:int):
+    # Get data
+    img = dataloader.dataset[dataset_index][0]
+
+    # Reshape to 2D
+    img_np = img.view(image_shape, image_shape).numpy()
+    return img_np
+
+

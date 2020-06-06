@@ -38,12 +38,16 @@ def train_vae(cfg):
     os.makedirs(models_save_dir, exist_ok=True)
     save_file = osp.join(models_save_dir, 'vae_{}_decoder.pth'.format(cfg.dataset))
     torch.save(vae_model.q_net.state_dict(), save_file)
+    logger.info('Saving model: {}'.format(save_file))
     save_file = osp.join(models_save_dir, 'vae_{}_encoder.pth'.format(cfg.dataset))
     torch.save(vae_model.p_net.state_dict(), save_file)
+    logger.info('Saving model: {}'.format(save_file))
     save_file = osp.join(models_save_dir, 'vae_{}_decoder_pickle.pth'.format(cfg.dataset))
     torch.save(vae_model.q_net, save_file)
+    logger.info('Saving model: {}'.format(save_file))
     save_file = osp.join(models_save_dir, 'vae_{}_encoder_pickle.pth'.format(cfg.dataset))
     torch.save(vae_model.p_net, save_file)
+    logger.info('Saving model: {}'.format(save_file))
 
 
 if __name__ == "__main__":
