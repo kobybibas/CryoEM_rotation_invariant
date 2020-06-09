@@ -1,0 +1,16 @@
+dataset: mnist
+z_dim: 64           # Latent variable dimension
+lr: 1e-3            # Learning rate
+step_size: 90       # Period of learning rate decay
+lr_disc: 1e-4       # Discriminator learning rate
+step_size_disc: 90  # Period of discriminator learning rate decay
+batch_size: 128     # Mini-batch size
+num_workers: 4      # Number of cpu workers in pytorch dataloader
+num_epochs: 200     # Number of training epochs
+worm_up_epochs: 16  # Number of epochs to train only generator (without discriminator)
+fast_dev_run: false # runs 1 batch of train, test and val
+
+hydra:
+  run:
+    # Output directory
+    dir: ../output/${now:%Y%m%d_%H%M%S}

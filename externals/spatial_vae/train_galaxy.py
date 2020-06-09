@@ -208,7 +208,7 @@ def load_images(path):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser('Train spatial-VAE on particle datasets')
+    parser = argparse.ArgumentParser('Train spatial-Ours on particle datasets')
 
     parser.add_argument('train_path', help='path to training data')
     parser.add_argument('test_path', help='path to testing data')
@@ -301,10 +301,10 @@ def main():
         translate = not args.no_translate
         inf_dim = z_dim
         if rotate:
-            print('# spatial-VAE with rotation inference', file=sys.stderr)
+            print('# spatial-Ours with rotation inference', file=sys.stderr)
             inf_dim += 1
         if translate:
-            print('# spatial-VAE with translation inference', file=sys.stderr)
+            print('# spatial-Ours with translation inference', file=sys.stderr)
             inf_dim += 2
         p_net = models.SpatialGenerator(z_dim, hidden_dim, n_out=n_out, num_layers=num_layers, activation=activation)
 

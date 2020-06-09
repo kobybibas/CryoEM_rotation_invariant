@@ -170,7 +170,7 @@ def eval_model(iterator, x_coord, p_net, q_net, rotate=True, translate=True
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser('Train spatial-VAE on MNIST datasets')
+    parser = argparse.ArgumentParser('Train spatial-Ours on MNIST datasets')
 
     parser.add_argument('--dataset', choices=['mnist', 'mnist-rotated', 'mnist-rotated-translated'],
                         default='mnist-rotated',
@@ -286,10 +286,10 @@ def main():
         translate = not args.no_translate
         inf_dim = z_dim
         if rotate:
-            print('# spatial-VAE with rotation inference', file=sys.stderr)
+            print('# spatial-Ours with rotation inference', file=sys.stderr)
             inf_dim += 1
         if translate:
-            print('# spatial-VAE with translation inference', file=sys.stderr)
+            print('# spatial-Ours with translation inference', file=sys.stderr)
             inf_dim += 2
         p_net = models.SpatialGenerator(z_dim, hidden_dim, num_layers=num_layers, activation=activation)
 

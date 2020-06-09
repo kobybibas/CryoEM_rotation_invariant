@@ -3,12 +3,14 @@ import os.path as osp
 
 import numpy as np
 import torch
+import torchvision.transforms as transforms
+from torchvision.datasets import MNIST
 
 logger = logging.getLogger(__name__)
 
 
 def get_dataset(dataset_name: str,
-                batch_size: int=128,
+                batch_size: int = 128,
                 num_workers: int = 4,
                 data_base_dir: str = osp.join('..', '..', 'data')):
     # Trainset
@@ -26,18 +28,24 @@ def get_dataset(dataset_name: str,
         train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
                                                    num_workers=num_workers)
         test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size, num_workers=num_workers)
+    elif dataset_name == 'mnist':
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize([0.5], [0.5])])
+        trainset = MNIST(data_base_dir, train=True, download=True, transform=transform)
+        train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
+                                                   num_workers=num_workers)
+        testset = MNIST(data_base_dir, train=False, download=True, transform=transform)
+        test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size, num_workers=num_workers)
+        image_shape = (1, 28, 28)
     else:
         raise ValueError('Dataset {} is not supported'.format(dataset_name))
 
     return train_loader, test_loader, image_shape
 
 
-def visualize_dataset(dataloader:torch.utils.data.DataLoader, dataset_index:int,image_shape:int):
+def visualize_dataset(dataloader: torch.utils.data.DataLoader, dataset_index: int, image_shape: int):
     # Get data
     img = dataloader.dataset[dataset_index][0]
 
     # Reshape to 2D
     img_np = img.view(image_shape, image_shape).numpy()
     return img_np
-
-
