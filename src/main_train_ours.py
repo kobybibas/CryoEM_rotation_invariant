@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path=osp.join('..', 'configs', 'ours_mnist.yaml'))
-def train_vae(cfg):
+def train_ours(cfg):
     logger.info(f"Run config:\n{cfg.pretty()}")
     out_dir = os.getcwd()
     logger.info('Working directory {}'.format(out_dir))
@@ -36,18 +36,16 @@ def train_vae(cfg):
     logger.info('Finished. Save to: {}'.format(os.getcwd()))
 
     # Save models
-    models_save_dir = osp.join('..', '..', 'models')
-    os.makedirs(models_save_dir, exist_ok=True)
-    save_file = osp.join(models_save_dir, 'ours_{}_decoder.pth'.format(cfg.dataset))
+    save_file = osp.join(os.getcwd(), 'ours_{}_decoder.pth'.format(cfg.dataset))
     torch.save(our_model.decoder.state_dict(), save_file)
     logger.info('Saving model: {}'.format(save_file))
-    save_file = osp.join(models_save_dir, 'our_{}_encoder.pth'.format(cfg.dataset))
+    save_file = osp.join(os.getcwd(), 'our_{}_encoder.pth'.format(cfg.dataset))
     torch.save(our_model.encoder.state_dict(), save_file)
     logger.info('Saving model: {}'.format(save_file))
-    save_file = osp.join(models_save_dir, 'our_{}_discriminator.pth'.format(cfg.dataset))
+    save_file = osp.join(os.getcwd(), 'our_{}_discriminator.pth'.format(cfg.dataset))
     torch.save(our_model.discriminator.state_dict(), save_file)
     logger.info('Saving model: {}'.format(save_file))
 
 
 if __name__ == "__main__":
-    train_vae()
+    train_ours()
