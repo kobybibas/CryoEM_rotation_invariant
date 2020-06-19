@@ -1,7 +1,8 @@
 .idea/*
 data/*
 output/*
-
+.DS_Store
+models/*
 
 # VIM files
 *.swp
