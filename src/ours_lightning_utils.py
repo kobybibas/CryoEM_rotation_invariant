@@ -5,16 +5,19 @@ After a few epochs, launch tensorboard to see the images being generated at ever
 tensorboard --logdir default
 """
 import logging
+import os
+import os.path as osp
 from collections import OrderedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from torch.utils.data import DataLoader
+
+from gan_utils import Encoder, Decoder, Discriminator, DecoderCNN, DiscriminatorCNN
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +31,23 @@ class Ours(pl.LightningModule):
         self.val_loader = val_loader
 
         # Define encoder-decoder
-        self.encoder = Encoder(latent_dim=hparams.z_dim, img_shape=img_shape)
-        self.decoder = Decoder(latent_dim=hparams.z_dim, img_shape=img_shape)
-        self.discriminator = Discriminator(img_shape=img_shape)
+        if hparams.architecture == 'fc':
+            self.encoder = Encoder(latent_dim=hparams.z_dim, img_shape=img_shape)
+            self.decoder = Decoder(latent_dim=hparams.z_dim, img_shape=img_shape)
+            self.discriminator = Discriminator(img_shape=img_shape)
+        elif hparams.architecture == 'cnn':
+            self.encoder = Encoder(latent_dim=hparams.z_dim, img_shape=img_shape)
+            self.decoder = DecoderCNN(latent_dim=hparams.z_dim, img_shape=img_shape)
+            self.discriminator = DiscriminatorCNN(img_shape=img_shape)
+        else:
+            raise ValueError(f'{hparams.architecture} is not supported')
 
         # Store rest of the hyper-params
         self.lr = hparams.lr
         self.lr_disc = hparams.lr_disc
+
+        # self.loss_type = hparams.loss_type
+        # assert self.loss_type in ['vanilla', 'wasserstein']
 
         # Number of batch in which the generator is not updated
         self.generator_idle_freq = hparams.generator_idle_freq
@@ -91,11 +104,11 @@ class Ours(pl.LightningModule):
         # Encoder-Decoder (generator)
         opt_g = torch.optim.Adam(list(self.encoder.parameters()) + list(self.decoder.parameters()),
                                  lr=self.lr, betas=(0.5, 0.999))
-        scheduler_g = torch.optim.lr_scheduler.MultiStepLR(opt_g, self.hparams.step_size)
+        scheduler_g = torch.optim.lr_scheduler.StepLR(opt_g, self.hparams.step_size)
 
         # Discriminator
         opt_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr_disc, betas=(0.5, 0.999))
-        scheduler_d = torch.optim.lr_scheduler.MultiStepLR(opt_d, self.hparams.step_size_disc)
+        scheduler_d = torch.optim.lr_scheduler.StepLR(opt_d, self.hparams.step_size_disc)
 
         return [opt_g, opt_d], [scheduler_g, scheduler_d]
 
@@ -276,7 +289,20 @@ class Ours(pl.LightningModule):
             self.logger.experiment.add_image(f'generated_images_epoch_{epoch_curr}', grid, global_step=epoch_curr)
         for k, v in logs.items():
             self.logger.experiment.add_scalar('val_' + k, v, epoch_curr)
+
+        # Save models
+        self.save_model()
+
         return {'val_loss': val_loss, 'logs': logs}
+
+    def save_model(self):
+        save_file = osp.join(os.getcwd(), 'ours_{}_decoder.pth'.format(self.hparams.dataset))
+        torch.save(self.decoder.state_dict(), save_file)
+        logger.info('Saving model: {}'.format(save_file))
+        save_file = osp.join(os.getcwd(), 'our_{}_encoder.pth'.format(self.hparams.dataset))
+        torch.save(self.encoder.state_dict(), save_file)
+        logger.info('Saving model: {}'.format(save_file))
+        save_file = osp.join(os.getcwd(), 'our_{}_discriminator.pth'.format(self.hparams.dataset))
 
     def visualize_batch(self, imgs: np.ndarray, imgs_rot_0: np.ndarray, gen_imgs: np.ndarray,
                         rot, z_rot, batch_idx: int, prefix: str = ''):
@@ -305,76 +331,3 @@ class Ours(pl.LightningModule):
         plt.tight_layout()
         plt.savefig('{}epoch_{:03d}_batch_{:03d}.jpg'.format(prefix, self.trainer.current_epoch, batch_idx))
         plt.close()
-
-
-class Encoder(nn.Module):
-    def __init__(self, latent_dim, img_shape):
-        super(Encoder, self).__init__()
-        self.img_shape = img_shape
-
-        def block(in_feat, out_feat, normalize=True):
-            layers = [nn.Linear(in_feat, out_feat)]
-            if normalize:
-                layers.append(nn.BatchNorm1d(out_feat, 0.8))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
-            return layers
-
-        self.model = nn.Sequential(
-            *block(int(np.prod(img_shape)), 512, normalize=False),
-            *block(512, 256),
-            *block(256, 128),
-            nn.Linear(128, latent_dim),
-            # nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        x_flat = x.view(x.size(0), -1)
-        z = self.model(x_flat)
-        z_rot = z[..., -1].unsqueeze(1)  # latent variable that encodes the rotation
-        z_content = z[..., :-1]  # latent vector that encodes the structure
-        return z_content, z_rot
-
-
-class Decoder(nn.Module):
-    def __init__(self, latent_dim, img_shape):
-        super(Decoder, self).__init__()
-        self.img_shape = img_shape
-
-        def block(in_feat, out_feat, normalize=True):
-            layers = [nn.Linear(in_feat, out_feat)]
-            if normalize:
-                layers.append(nn.BatchNorm1d(out_feat, 0.8))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
-            return layers
-
-        self.model = nn.Sequential(
-            *block(latent_dim, 128, normalize=False),
-            *block(128, 256),
-            nn.Linear(256, int(np.prod(img_shape))),
-            nn.Tanh()
-        )
-
-    def forward(self, z_content, z_rot):
-        z = torch.cat((z_content, z_rot), 1)
-        img = self.model(z)
-        img = img.view(img.size(0), *self.img_shape)
-        return img
-
-
-class Discriminator(nn.Module):
-    def __init__(self, img_shape):
-        super(Discriminator, self).__init__()
-
-        self.model = nn.Sequential(
-            nn.Linear(int(np.prod(img_shape)), 512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, img):
-        img_flat = img.view(img.size(0), -1)
-        validity = self.model(img_flat)
-        return validity

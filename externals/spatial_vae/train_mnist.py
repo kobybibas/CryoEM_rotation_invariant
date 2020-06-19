@@ -126,7 +126,7 @@ def train_epoch(iterator, x_coord, p_net, q_net, optim, rotate=True, translate=T
         line = template.format(epoch + 1, num_epochs, c / N, elbo_accum, gen_loss_accum
                                , kl_loss_accum)
         print(line, end='\r', file=sys.stderr)
-
+        print(line)
     print(' ' * 80, end='\r', file=sys.stderr)
     return elbo_accum, gen_loss_accum, kl_loss_accum
 
@@ -328,7 +328,7 @@ def main():
     print('q_net')
     print(q_net)
     for epoch in range(num_epochs):
-
+        print(epoch)
         elbo_accum, gen_loss_accum, kl_loss_accum = train_epoch(train_iterator, x_coord, p_net, q_net,
                                                                 optim, rotate=rotate, translate=translate,
                                                                 dx_scale=dx_scale, theta_prior=theta_prior,

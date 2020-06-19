@@ -45,7 +45,8 @@ Training spatial-VAE model:
 
 ```
 cd src
-python main_train_vae.py dataset=mnist_rotated 
+python main_train_vae.py --config_path=../configs/vae_mnist.yaml
+python main_train_vae.py --config_path=../configs/vae_5hdb.yaml
 ```
 
 configuration file is located here: ''configs/vae_mnist.yaml"
@@ -56,7 +57,8 @@ Training our approach
 
 ```
 cd src
-python main_train_ours.py dataset=mnist_rotated 
+python main_train_ours.py --config_path=../configs/ours_mnist.yaml 
+python main_train_ours.py --config_path=../configs/ours_5hdb.yaml
 ```
 
 configuration file is located here: ''configs/ours_mnist.yaml"

@@ -1,12 +1,12 @@
-dataset: mnist      # dataset to use: mnist or 5hdb
+dataset: 5hdb       # dataset to use: mnist or 5hdb
 z_dim: 5            # Latent variable dimension
 hidden_dim: 500     # Dimension of hidden layers
 num_layers: 2       # Number of hidden layers
 activation: tanh    # Activation function
 dx_scale: 0.1       # Standard deviation of translation latent variables
-theta_prior: 0.7854 # pi/4, standard deviation on rotation prior
+theta_prior: 3.1416 # pi, standard deviation on rotation prior (notice it is different than mnist)
 lr: 1e-3            # Learning rate
-step_size: 90        # Epochs num for learning rate to decay
+step_size: 50       # Epoch number of learning rate to decay
 batch_size: 256     # Mini-batch size
 num_workers: 4      # Number of cpu workers in pytorch dataloader
 num_epochs: 200     # Number of training epochs
@@ -15,4 +15,4 @@ fast_dev_run: false # runs 1 batch of train, test and val
 hydra:
   run:
     # Output directory
-    dir: ../output/vae_mnist_${now:%Y%m%d_%H%M%S}
+    dir: ../output/vae_5hdb_${now:%Y%m%d_%H%M%S}

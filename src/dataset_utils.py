@@ -1,52 +1,58 @@
 import logging
 import os.path as osp
+import pickle
 import random
 
+import mrc
 import numpy as np
+import scipy.ndimage
 import torch
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 from PIL import Image
 from torchvision.datasets import MNIST
+from torchvision.datasets.vision import VisionDataset
 
 logger = logging.getLogger(__name__)
+
+transform_mnist = transforms.Compose([transforms.ToTensor()])  # , transforms.Normalize([0.5], [0.5])])
+# transform_particles = transforms.Compose([transforms.CenterCrop(100),
+#                                           transforms.Resize(40, interpolation=2),
+#                                           transforms.ToTensor()], transforms.Normalize([0.5], [0.5])])
+transform_particles = transforms.Compose([transforms.CenterCrop(100),
+                                              transforms.Resize(40, interpolation=2),
+                                              transforms.ToTensor(),
+                                              transforms.Normalize([0.3907], [0.0948 / 2.3510475]),  # match std
+                                              transforms.Normalize([-0.0065 - 0.9820243], [1])]  # match mean
+                                             )
 
 
 def get_dataset(dataset_name: str,
                 batch_size: int = 128,
-                num_workers: int = 4,
+                n_workers: int = 4,
                 data_base_dir: str = osp.join('..', '..', 'data')):
-    # Trainset
-    if dataset_name == 'mnist_rotated':
-        logger.info('Training on rotated MNIST')
-        mnist_train = np.load(osp.join(data_base_dir, 'mnist_rotated', 'images_train.npy'))
-        mnist_test = np.load(osp.join(data_base_dir, 'mnist_rotated', 'images_test.npy'))
-        mnist_train = torch.from_numpy(mnist_train).float() / 255
-        mnist_test = torch.from_numpy(mnist_test).float() / 255
-        image_shape = n = m = 28
-        y_train = mnist_train.view(-1, n * m)
-        y_test = mnist_test.view(-1, n * m)
-        trainset = torch.utils.data.TensorDataset(y_train)
-        testset = torch.utils.data.TensorDataset(y_test)
-        train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
-                                                   num_workers=num_workers)
-        test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size, num_workers=num_workers)
-    # elif dataset_name == 'mnist':
-    #     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize([0.5], [0.5])])
-    #     trainset = MNIST(data_base_dir, train=True, download=True, transform=transform)
-    #     train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
-    #                                                num_workers=num_workers)
-    #     testset = MNIST(data_base_dir, train=False, download=True, transform=transform)
-    #     test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size, num_workers=num_workers)
-    #     image_shape = (1, 28, 28)
-    elif dataset_name == 'mnist':
-        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize([0.5], [0.5])])
-        trainset = MnistRotate(data_base_dir, train=True, download=True, transform=transform)
-        train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
-                                                   num_workers=num_workers)
-        testset = MnistRotate(data_base_dir, train=False, download=True, transform=transform)
-        test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size, num_workers=num_workers)
+    if dataset_name == 'mnist':
         image_shape = (1, 28, 28)
+
+        # Trainset
+        trainset = MnistRotate(data_base_dir, train=True, download=True, transform=transform_mnist)
+        train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=n_workers)
+
+        # Testset
+        testset = MnistRotate(data_base_dir, train=False, download=True, transform=transform_mnist)
+        test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size, num_workers=n_workers)
+
+    elif dataset_name == '5hdb':
+        image_shape = (1, 40, 40)
+
+        # Trainset
+        trainset = EM_5HDB(data_base_dir, train=True, download=True, transform=transform_particles)
+        train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=n_workers)
+
+        # Testset
+        testset = EM_5HDB(data_base_dir, train=False, download=True, transform=transform_particles)
+        test_loader = torch.utils.data.DataLoader(testset, batch_size=batch_size, num_workers=n_workers)
+
     else:
         raise ValueError('Dataset {} is not supported'.format(dataset_name))
 
@@ -88,16 +94,80 @@ class MnistRotate(MNIST):
         angle_deg = angle * 180 / np.pi
         img = Image.fromarray(img.numpy(), mode='L')
         img_rot = TF.rotate(img, angle_deg)
-        # img = TF.to_tensor(img)
 
-        # doing this so that it is consistent with all other datasets
-        # to return a PIL Image
-        # img = Image.fromarray(img.numpy(), mode='L')
+        if self.transform is not None:
+            img = self.transform(img)
+            img_rot = self.transform(img_rot)
+        return img_rot, angle, img
+
+
+class EM_5HDB(VisionDataset):
+    particles_train = [str(x) + '_' for x in range(0, 16)]
+    particles_test = [str(x) + '_' for x in range(16, 20)]
+
+    @staticmethod
+    def load_particle_images(base_dir: str):
+
+        # Load image
+        mrc_file = osp.join(base_dir, 'imgdata.mrc')
+        imgs = mrc.imread(mrc_file)
+        imgs = np.array(imgs)
+
+        # Load rotation angle
+        pkl = pickle.load(open(osp.join(base_dir, 'pardata.pkl'), "rb"))
+        rot_rad = pkl['i']
+        rot_deg = 180 * np.array(rot_rad) / np.pi
+        return imgs, rot_deg
+
+    def __init__(self, root, train=True, transform=None, target_transform=None, download=False):
+        super().__init__(root, transform=transform, target_transform=target_transform)
+
+        particle_folders = self.particles_train if train is True else self.particles_test
+
+        # Load particles data
+        imgs_list, rot_deg_list = [], []
+        for particle_folder in particle_folders:
+            imgs, rot_deg = self.load_particle_images(osp.join(root, '5HDB', particle_folder))
+
+            # Normalize each particle between 0 and 255 like regular image
+            imgs = 255 * (imgs - imgs.min()) / (imgs.max() - imgs.min())
+            imgs = np.uint8(imgs)
+
+            # Store
+            imgs_list.append(torch.from_numpy(imgs))
+            rot_deg_list.append(torch.from_numpy(rot_deg))
+
+        self.data = torch.cat(imgs_list, dim=0)
+        self.targets = torch.cat(rot_deg_list, dim=0)
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (image, target) where target is index of the target class.
+        """
+        img_rot, angle_deg = self.data[index], int(self.targets[index])
+
+        # Rotate to canonic angle
+        img_rot = img_rot.numpy()
+        img = scipy.ndimage.rotate(img_rot, -angle_deg, mode='reflect')
+
+        img = Image.fromarray(img, mode='P')
+        img_rot = Image.fromarray(img_rot, mode='P')
 
         if self.transform is not None:
             img = self.transform(img)
             img_rot = self.transform(img_rot)
 
-        # if self.target_transform is not None:
-        #     target = self.target_transform(target)
+        angle = np.pi * angle_deg / 180
         return img_rot, angle, img
+
+    def __len__(self):
+        return len(self.data)
+
+
+if __name__ == '__main__':
+    dataset = EM_5HDB('../data')
+    print(dataset[0])

@@ -1,6 +1,5 @@
 from __future__ import print_function, division
 
-import os.path as osp
 import sys
 
 import numpy as np
@@ -14,7 +13,7 @@ from torch.autograd import Variable
 import ctf as C
 import image as image_utils
 import models as models
-import mrc as mrc
+import mrc_local as mrc
 
 
 def eval_minibatch(x, y, mask, ctf, p_net, q_net, rotate=True, translate=True, dx_scale=0.1, theta_prior=np.pi
@@ -273,8 +272,10 @@ def main():
 
     parser = argparse.ArgumentParser('Train spatial-Ours on particle datasets')
 
-    parser.add_argument('--train_path', help='path to training data', type=str, default=osp.join('..', '..', 'data'))
-    parser.add_argument('--test_path', help='path to testing data', type=str, default=osp.join('..', '..', 'data'))
+    parser.add_argument('--train_path', help='path to training data', type=str,
+                        default='../../data/5HDB/processed_train.npy')
+    parser.add_argument('--test_path', help='path to testing data', type=str,
+                        default='../../data/5HDB/processed_test.npy')
 
     parser.add_argument('--ctf-train', help='path to CTF parameters for training images')
     parser.add_argument('--ctf-test', help='path to CTF parameters for testing images')
