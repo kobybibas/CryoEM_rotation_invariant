@@ -1,10 +1,10 @@
+import cv2
 import logging
+import mrc
+import numpy as np
 import os.path as osp
 import pickle
 import random
-
-import mrc
-import numpy as np
 import scipy.ndimage
 import torch
 import torchvision.transforms as transforms
@@ -12,19 +12,17 @@ import torchvision.transforms.functional as TF
 from PIL import Image
 from torchvision.datasets import MNIST
 from torchvision.datasets.vision import VisionDataset
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
-transform_mnist = transforms.Compose([transforms.ToTensor()])  # , transforms.Normalize([0.5], [0.5])])
-# transform_particles = transforms.Compose([transforms.CenterCrop(100),
-#                                           transforms.Resize(40, interpolation=2),
-#                                           transforms.ToTensor()], transforms.Normalize([0.5], [0.5])])
+transform_mnist = transforms.Compose([transforms.ToTensor()])
 transform_particles = transforms.Compose([transforms.CenterCrop(100),
-                                              transforms.Resize(40, interpolation=2),
-                                              transforms.ToTensor(),
-                                              transforms.Normalize([0.3907], [0.0948 / 2.3510475]),  # match std
-                                              transforms.Normalize([-0.0065 - 0.9820243], [1])]  # match mean
-                                             )
+                                          transforms.Resize(40, interpolation=2),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize([0.3907], [0.0948 / 2.3510475]),  # match std
+                                          transforms.Normalize([-0.0065 - 0.9820243], [1])]  # match mean
+                                         )
 
 
 def get_dataset(dataset_name: str,
@@ -105,6 +103,25 @@ class EM_5HDB(VisionDataset):
     particles_train = [str(x) + '_' for x in range(0, 16)]
     particles_test = [str(x) + '_' for x in range(16, 20)]
 
+    def __init__(self, root, train=True, transform=None, target_transform=None, download=False):
+        super().__init__(root, transform=transform, target_transform=target_transform)
+
+        self.train = train
+        self.processed_data_path = osp.join(root, '5HDB', 'ours_processed_{}.npy'.format('train' if train else 'test'))
+
+        if not osp.exists(self.processed_data_path):
+            particle_folders = self.particles_train if train is True else self.particles_test
+            imgs, rots_deg, imgs_rot = self.process_data(root, particle_folders)
+            np.save(self.processed_data_path, {'imgs': imgs, 'rots_deg': rots_deg, 'imgs_rot': imgs_rot})
+        else:
+            logger.info('{} exists'.format(self.processed_data_path))
+
+        loaded_dict = np.load(self.processed_data_path, allow_pickle=True).item()
+
+        self.imgs = loaded_dict['imgs']
+        self.imgs_rot = loaded_dict['imgs_rot']
+        self.targets = loaded_dict['rots_deg']
+
     @staticmethod
     def load_particle_images(base_dir: str):
 
@@ -119,14 +136,12 @@ class EM_5HDB(VisionDataset):
         rot_deg = 180 * np.array(rot_rad) / np.pi
         return imgs, rot_deg
 
-    def __init__(self, root, train=True, transform=None, target_transform=None, download=False):
-        super().__init__(root, transform=transform, target_transform=target_transform)
-
-        particle_folders = self.particles_train if train is True else self.particles_test
+    def process_data(self, root: str, particle_folders: list) -> (np.ndarray, np.ndarray, np.ndarray):
 
         # Load particles data
-        imgs_list, rot_deg_list = [], []
-        for particle_folder in particle_folders:
+        logger.info('Load particles data: {}'.format('train' if self.train else 'test'))
+        imgs_rot_list, rot_deg_list = [], []
+        for particle_folder in tqdm(particle_folders):
             imgs, rot_deg = self.load_particle_images(osp.join(root, '5HDB', particle_folder))
 
             # Normalize each particle between 0 and 255 like regular image
@@ -134,11 +149,25 @@ class EM_5HDB(VisionDataset):
             imgs = np.uint8(imgs)
 
             # Store
-            imgs_list.append(torch.from_numpy(imgs))
-            rot_deg_list.append(torch.from_numpy(rot_deg))
+            imgs_rot_list.append(imgs)
+            rot_deg_list.append(rot_deg)
 
-        self.data = torch.cat(imgs_list, dim=0)
-        self.targets = torch.cat(rot_deg_list, dim=0)
+        imgs_rot = np.concatenate(imgs_rot_list, axis=0)
+        rots_deg = np.concatenate(rot_deg_list, axis=0)
+
+        # Process data
+        logger.info('Process data: {}'.format('train' if self.train else 'test'))
+        img_list = []
+        for img_rot, angle_deg in tqdm(zip(imgs_rot, rots_deg), total=len(imgs_rot)):
+            # Rotate to canonic angle
+            img = scipy.ndimage.rotate(img_rot, -angle_deg, mode='reflect')
+
+            # de-noising
+            img = cv2.fastNlMeansDenoising(img, None, 21, 2, 21)
+
+            img_list.append(img)
+        imgs = np.array(img_list)
+        return imgs, rots_deg, imgs_rot
 
     def __getitem__(self, index):
         """
@@ -148,11 +177,11 @@ class EM_5HDB(VisionDataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        img_rot, angle_deg = self.data[index], int(self.targets[index])
+        img_rot, angle_deg, img = self.imgs_rot[index], self.targets[index], self.imgs[index]
 
-        # Rotate to canonic angle
-        img_rot = img_rot.numpy()
-        img = scipy.ndimage.rotate(img_rot, -angle_deg, mode='reflect')
+        # from angle between 0-360 to angle between -180 to 180
+        if angle_deg > 180:
+            angle_deg = -(360 - angle_deg)
 
         img = Image.fromarray(img, mode='P')
         img_rot = Image.fromarray(img_rot, mode='P')
@@ -161,11 +190,11 @@ class EM_5HDB(VisionDataset):
             img = self.transform(img)
             img_rot = self.transform(img_rot)
 
-        angle = np.pi * angle_deg / 180
-        return img_rot, angle, img
+        angle_rad = np.pi * angle_deg / 180
+        return img_rot, angle_rad, img
 
     def __len__(self):
-        return len(self.data)
+        return len(self.imgs)
 
 
 if __name__ == '__main__':

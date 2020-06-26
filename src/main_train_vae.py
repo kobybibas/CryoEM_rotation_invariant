@@ -1,8 +1,7 @@
+import hydra
 import logging
 import os
 import os.path as osp
-
-import hydra
 import pytorch_lightning as pl
 import torch
 
@@ -17,6 +16,9 @@ def train_vae(cfg):
     logger.info(f"Run config:\n{cfg.pretty()}")
     out_dir = os.getcwd()
     logger.info('Working directory {}'.format(out_dir))
+
+    # To ensure reproducibility
+    pl.seed_everything(123)
 
     # Dataset
     train_loader, test_loader, image_shape = get_dataset(cfg.dataset, cfg.batch_size, cfg.num_workers)

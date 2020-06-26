@@ -65,7 +65,7 @@ configuration file is located here: ''configs/ours_mnist.yaml"
 
 
 
-For excecuting the original code:
+To execute the original code:
 
 ```bash
 cd externals/spatial_vae

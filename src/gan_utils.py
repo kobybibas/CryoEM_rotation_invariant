@@ -86,17 +86,31 @@ class Discriminator(nn.Module):
 class DecoderCNN(nn.Module):
     # based on DCGAN
 
-    def __init__(self, latent_dim, img_shape, featmap_dim=1024, n_channel=1):
+    def __init__(self, latent_dim, img_shape, featmap_dim=64, n_channel=1, last_activation='tanh'):
         super(DecoderCNN, self).__init__()
         self.featmap_dim = featmap_dim
-        self.fc1 = nn.Linear(latent_dim, 4 * 4 * featmap_dim)
-        self.conv1 = nn.ConvTranspose2d(featmap_dim, int(featmap_dim / 2), 5, stride=2, padding=2)
+        self.latent_dim = latent_dim
+        self.img_shape = img_shape
+        self.last_activation = last_activation
 
-        self.BN1 = nn.BatchNorm2d(int(featmap_dim / 2))
-        self.conv2 = nn.ConvTranspose2d(int(featmap_dim / 2), int(featmap_dim / 4), 6, stride=2, padding=2)
+        self.fc1 = nn.Linear(self.latent_dim, 4 * 4 * self.featmap_dim)
+        self.conv1 = nn.ConvTranspose2d(self.featmap_dim, int(self.featmap_dim / 2), 5, stride=2, padding=2)
 
-        self.BN2 = nn.BatchNorm2d(int(featmap_dim / 4))
-        self.conv3 = nn.ConvTranspose2d(int(featmap_dim / 4), n_channel, 6, stride=2, padding=2)
+        self.BN1 = nn.BatchNorm2d(int(self.featmap_dim / 2))
+        self.conv2 = nn.ConvTranspose2d(int(self.featmap_dim / 2), int(self.featmap_dim / 4), 6, stride=2, padding=2)
+
+        self.BN2 = nn.BatchNorm2d(int(self.featmap_dim / 4))
+
+        # Determine the kernel size such that the output is as in img_shape
+        # The formula: h_out = (h_in - 1)* stride - 2 * pad + 1 + dilation*(kernel_size-1)
+        h_in = 14
+        stride = 2
+        pad = 2
+        dilation = 1
+        h_out = self.img_shape[-1]
+        kernel_size = (1 / dilation) * (h_out - (h_in - 1) * stride + 2 * pad - 1) + 1
+        kernel_size = int(kernel_size)  # todo: add warning if not int
+        self.conv3 = nn.ConvTranspose2d(int(self.featmap_dim / 4), n_channel, kernel_size, stride=stride, padding=pad)
 
     def forward(self, z_content, z_rot):
         """
@@ -107,39 +121,48 @@ class DecoderCNN(nn.Module):
         x = torch.cat((z_content, z_rot), 1)
         x = self.fc1(x)
         x = x.view(-1, self.featmap_dim, 4, 4)
-        x = F.relu(self.BN1(self.conv1(x)))
-        x = F.relu(self.BN2(self.conv2(x)))
-        x = torch.tanh(self.conv3(x))
+        x = F.leaky_relu(self.BN1(self.conv1(x)), negative_slope=0.2)
+        x = F.leaky_relu(self.BN2(self.conv2(x)), negative_slope=0.2)
+        x = self.conv3(x)
+
+        if self.last_activation == 'tanh':
+            x = torch.tanh(x)
 
         return x
 
 
 class DiscriminatorCNN(nn.Module):
 
-    def __init__(self, img_shape, feature_map_dim=512, n_channel=1):
+    def __init__(self, img_shape, feature_map_dim=8, n_channel=1, is_linear_output: bool = False):
         super(DiscriminatorCNN, self).__init__()
         self.img_shape = img_shape
-        self.featmap_dim = feature_map_dim
-        self.conv1 = nn.Conv2d(n_channel, int(feature_map_dim / 4), 5, stride=2, padding=2)
+        self.feature_map_dim = feature_map_dim
+        self.use_wasserstein = is_linear_output
 
-        self.conv2 = nn.Conv2d(int(feature_map_dim / 4), int(feature_map_dim / 2), 5, stride=2, padding=2)
-        self.BN2 = nn.BatchNorm2d(int(feature_map_dim / 2))
+        # Define the layers
+        self.conv1 = nn.Conv2d(n_channel, int(self.feature_map_dim / 4), 5, stride=2, padding=2)
 
-        self.conv3 = nn.Conv2d(int(feature_map_dim / 2), feature_map_dim, 5, stride=2, padding=2)
-        self.BN3 = nn.BatchNorm2d(feature_map_dim)
+        self.conv2 = nn.Conv2d(int(self.feature_map_dim / 4), int(self.feature_map_dim / 2), 5, stride=2, padding=2)
+        self.BN2 = nn.BatchNorm2d(int(self.feature_map_dim / 2))
 
-        self.fc = nn.Linear(feature_map_dim * 4 * 4, 1)
+        self.conv3 = nn.Conv2d(int(self.feature_map_dim / 2), self.feature_map_dim, 5, stride=2, padding=2)
+        self.BN3 = nn.BatchNorm2d(self.feature_map_dim)
 
-    def forward(self, x):
+        self.fc = nn.Linear(int(self.feature_map_dim * 4 * 4), 1)
+        if self.img_shape[-1] == 40:  # in case of 5hdb data
+            self.fc = nn.Linear(200, 1)
+
+    def forward(self, x_in):
         """
-        Strided convulation layers,
+        Strided conv layers,
         Batch Normalization after conv but not at input layer,
         LeakyReLU activation function with slope 0.2.
         """
 
-        x = F.leaky_relu(self.conv1(x), negative_slope=0.2)
+        x = F.leaky_relu(self.conv1(x_in), negative_slope=0.2)
         x = F.leaky_relu(self.BN2(self.conv2(x)), negative_slope=0.2)
         x = F.leaky_relu(self.BN3(self.conv3(x)), negative_slope=0.2)
-        x = x.view(-1, self.featmap_dim * 4 * 4)
-        x = torch.sigmoid(self.fc(x))
+        x = x.view(-1, self.fc.in_features)
+        x = self.fc(x)
+        x = torch.sigmoid(x) if self.use_wasserstein is False else x
         return x

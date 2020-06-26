@@ -1,8 +1,7 @@
+import hydra
 import logging
 import os
 import os.path as osp
-
-import hydra
 import pytorch_lightning as pl
 import torch
 
@@ -19,6 +18,9 @@ def train_ours(cfg):
     logger.info('Working directory {}'.format(out_dir))
     logger.info('tensorboard: http://localhost:6006/')
 
+    # To ensure reproducibility
+    pl.seed_everything(123)
+
     # Dataset
     train_loader, test_loader, image_shape = get_dataset(cfg.dataset, cfg.batch_size, cfg.num_workers)
 
@@ -30,13 +32,13 @@ def train_ours(cfg):
                          checkpoint_callback=False,
                          max_nb_epochs=cfg.num_epochs,
                          fast_dev_run=cfg.fast_dev_run,
-                         progress_bar_refresh_rate=0,
+                         progress_bar_refresh_rate=1,
                          gpus=[0] if torch.cuda.is_available() else 0)
     trainer.fit(our_model)
     logger.info('Finished. Save to: {}'.format(os.getcwd()))
 
     # Save models
-    save_file = osp.join(os.getcwd(), 'ours_{}_decoder.pth'.format(cfg.dataset))
+    save_file = osp.join(os.getcwd(), 'our_{}_decoder.pth'.format(cfg.dataset))
     torch.save(our_model.decoder.state_dict(), save_file)
     logger.info('Saving model: {}'.format(save_file))
     save_file = osp.join(os.getcwd(), 'our_{}_encoder.pth'.format(cfg.dataset))
