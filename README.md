@@ -1,4 +1,4 @@
-# Deep Learning Medical Imagin Project: Tel-Aviv Universty
+# Deep Learning Medical Imaging Project: Tel-Aviv Universty
 
 Learning to seperate pose and staracture using GAN.
 
