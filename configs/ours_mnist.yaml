@@ -6,21 +6,22 @@ step_size_disc: 150             # Period of discriminator learning rate decay
 batch_size: 256                 # Mini-batch size
 num_workers: 4                  # Number of cpu workers in pytorch dataloader
 num_epochs: 200                 # Number of training epochs
-fast_dev_run: false             # runs 1 batch of train, test and val
 discriminator_idle_freq: 1      # Number of batches in which the discriminator (critic) is not updated (default 5)
 generator_idle_freq: 1          # Number of batches in which the generator is not updated (default 1)
 weight_decay: 0                 # L2 penalty
-use_wasserstein: false
-last_activation: tanh           # last activation layer of the generator
+
 
 # Architecture
 z_dim: 32                       # Latent variable dimension
 architecture: cnn               # Which architecture to use (cnn or fc). cnn for DCGAN.
+last_activation: tanh           # last activation layer of the generator. fc for 5hdb and tanh for MNIST.
+use_wasserstein: false
 
-# Visualization
+# Visualization and debug
 batches_to_viz: 5               # Number of batches to perform visualization
 viz_num_per_batch: 10           # Number of images to visualize in a batch
 viz_epoch_rate: 5               # Epoch frequency to save visualization (i.e. every 5 epochs)
+fast_dev_run: false             # runs 1 batch of train, test and val
 
 hydra:
   run:

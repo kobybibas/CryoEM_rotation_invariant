@@ -5,16 +5,17 @@ After a few epochs, launch tensorboard to see the images being generated at ever
 tensorboard --logdir default
 """
 import logging
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 import os.path as osp
+from collections import OrderedDict
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 import torchvision
 import yaml
-from collections import OrderedDict
 from torch import optim
 from torch.utils.data import DataLoader
 
@@ -34,13 +35,13 @@ class Ours(pl.LightningModule):
         # Define encoder-decoder
         if hparams.architecture == 'fc':
             self.encoder = Encoder(latent_dim=hparams.z_dim, img_shape=img_shape)
-            self.decoder = Decoder(latent_dim=hparams.z_dim, img_shape=img_shape)
-            self.discriminator = Discriminator(img_shape=img_shape)
+            self.decoder = Decoder(latent_dim=hparams.z_dim, img_shape=img_shape, last_activ=hparams.last_activation)
+            self.discriminator = Discriminator(img_shape=img_shape, is_linear_output=hparams.use_wasserstein)
+            self.angle_classifier = Discriminator(img_shape=img_shape, is_linear_output=True)
         elif hparams.architecture == 'cnn':
             self.encoder = Encoder(latent_dim=hparams.z_dim, img_shape=img_shape)
-            self.decoder = DecoderCNN(latent_dim=hparams.z_dim, img_shape=img_shape,
-                                      last_activation=hparams.last_activation)
-            self.discriminator = DiscriminatorCNN(img_shape=img_shape, is_linear_output=self.hparams.use_wasserstein)
+            self.decoder = DecoderCNN(latent_dim=hparams.z_dim, img_shape=img_shape, last_activ=hparams.last_activation)
+            self.discriminator = DiscriminatorCNN(img_shape=img_shape, is_linear_output=hparams.use_wasserstein)
             self.angle_classifier = DiscriminatorCNN(img_shape=img_shape, is_linear_output=True)
         else:
             raise ValueError(f'{hparams.architecture} is not supported')
@@ -99,7 +100,7 @@ class Ours(pl.LightningModule):
 
     def calc_adversarial_loss(self, y_hat, y) -> torch.Tensor:
         if self.use_wasserstein is False:
-            loss = F.binary_cross_entropy(y_hat, y)
+            loss = F.binary_cross_entropy(y_hat.float(), y.float())
         else:
             loss = torch.mean(y_hat * y)
         return loss
@@ -117,14 +118,14 @@ class Ours(pl.LightningModule):
 
         # Encoder-Decoder (generator)
         enc_dec_p = list(self.encoder.parameters()) + list(self.decoder.parameters())
-        # if self.use_wasserstein is False:
+        # if self.is_linear_output is False:
         opt_g = optim.Adam(enc_dec_p, lr=self.lr, betas=betas, weight_decay=self.hparams.weight_decay)
         # else:
         #     opt_g = optim.RMSprop(enc_dec_p, lr=self.lr, weight_decay=self.hparams.weight_decay)
         scheduler_g = optim.lr_scheduler.StepLR(opt_g, self.hparams.step_size)
 
         # Discriminator
-        # if self.use_wasserstein is False:
+        # if self.is_linear_output is False:
         disc_p = list(self.discriminator.parameters()) + list(self.angle_classifier.parameters())
         opt_d = optim.Adam(disc_p, lr=self.lr_disc, betas=betas,
                            weight_decay=self.hparams.weight_decay)

@@ -34,9 +34,10 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, latent_dim, img_shape):
+    def __init__(self, latent_dim, img_shape, last_activ='tanh'):
         super(Decoder, self).__init__()
         self.img_shape = img_shape
+        self.last_activation = last_activ
 
         def block(in_feat, out_feat, normalize=True):
             layers = [nn.Linear(in_feat, out_feat)]
@@ -55,26 +56,29 @@ class Decoder(nn.Module):
     def forward(self, z_content, z_rot):
         z = torch.cat((z_content, z_rot), 1)
         img = self.model(z)
+        if self.last_activation == 'tanh':
+            img = torch.tanh(img)
         img = img.view(img.size(0), *self.img_shape)
         return img
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape):
+    def __init__(self, img_shape, is_linear_output: bool = False):
         super(Discriminator, self).__init__()
+        self.is_linear_output = is_linear_output
 
         self.model = nn.Sequential(
             nn.Linear(int(np.prod(img_shape)), 512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(512, 256),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
-            nn.Sigmoid(),
+            nn.Linear(256, 1)
         )
 
     def forward(self, img):
         img_flat = img.view(img.size(0), -1)
         validity = self.model(img_flat)
+        validity = torch.sigmoid(validity) if self.is_linear_output is False else validity
         return validity
 
 
@@ -86,12 +90,12 @@ class Discriminator(nn.Module):
 class DecoderCNN(nn.Module):
     # based on DCGAN
 
-    def __init__(self, latent_dim, img_shape, featmap_dim=64, n_channel=1, last_activation='tanh'):
+    def __init__(self, latent_dim, img_shape, featmap_dim=64, n_channel=1, last_activ='tanh'):
         super(DecoderCNN, self).__init__()
         self.featmap_dim = featmap_dim
         self.latent_dim = latent_dim
         self.img_shape = img_shape
-        self.last_activation = last_activation
+        self.last_activation = last_activ
 
         self.fc1 = nn.Linear(self.latent_dim, 4 * 4 * self.featmap_dim)
         self.conv1 = nn.ConvTranspose2d(self.featmap_dim, int(self.featmap_dim / 2), 5, stride=2, padding=2)
@@ -137,7 +141,7 @@ class DiscriminatorCNN(nn.Module):
         super(DiscriminatorCNN, self).__init__()
         self.img_shape = img_shape
         self.feature_map_dim = feature_map_dim
-        self.use_wasserstein = is_linear_output
+        self.is_linear_output = is_linear_output
 
         # Define the layers
         self.conv1 = nn.Conv2d(n_channel, int(self.feature_map_dim / 4), 5, stride=2, padding=2)
@@ -164,5 +168,5 @@ class DiscriminatorCNN(nn.Module):
         x = F.leaky_relu(self.BN3(self.conv3(x)), negative_slope=0.2)
         x = x.view(-1, self.fc.in_features)
         x = self.fc(x)
-        x = torch.sigmoid(x) if self.use_wasserstein is False else x
+        x = torch.sigmoid(x) if self.is_linear_output is False else x
         return x

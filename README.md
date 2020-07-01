@@ -1,22 +1,34 @@
 # Deep Learning Medical Imagin Project: Tel-Aviv Universty
 
+Learning to seperate pose and staracture using GAN.
+
+```
+![antibody_gif](gifs/antibody_spatial.gif)
+```
+
+<img src="/Users/kobibi/WorkDocs/medical_imaging_project/output/animations/roation_animation.gif" alt="rotation_anim" style="zoom:100%;" />
 
 ## Setup
 
 This is python3.6 and Pytorch based code. Dependencies:
 
-```
- pip install -r requirements.txt
+```bash
+# Using conda. If package installation fails it install with pip.
+conda install --yes pip
+conda config --add channels anaconda
+conda config --add channels conda-forge
+conda config --add channels pytorch
+while read requirement; do conda install --yes $requirement || pip install $requirement; done < requirements.txt 
+ 
+# Using pip
+pip install -r requirements.txt 
 ```
 
 ## Datasets
 
 Datasets as tarballs are available from the links below.
 
-- [Rotated MNIST](http://bergerlab-downloads.csail.mit.edu/spatial-vae/mnist_rotated.tar.gz)
 - [5HDB simulated EM images](http://bergerlab-downloads.csail.mit.edu/spatial-vae/5HDB.tar.gz)
-- [CODH/ACS EM images](http://bergerlab-downloads.csail.mit.edu/spatial-vae/codhacs.tar.gz)
-- [Antibody EM images](http://bergerlab-downloads.csail.mit.edu/spatial-vae/antibody.tar.gz)
 
 Download and extract. Working directory stracture:
 
@@ -27,7 +39,8 @@ Download and extract. Working directory stracture:
 ├── configs
 │   └── vae_mnist.yaml
 ├── data
-│   └── mnist_rotated
+│   └── 5HDB
+│   └── MNIST
 ├── externals
 │   └── spatial_vae
 ├── models
@@ -43,7 +56,7 @@ Download and extract. Working directory stracture:
 
 Training spatial-VAE model:
 
-```
+```bash
 cd src
 python main_train_vae.py --config_path=../configs/vae_mnist.yaml
 python main_train_vae.py --config_path=../configs/vae_5hdb.yaml
@@ -55,7 +68,7 @@ configuration file is located here: ''configs/vae_mnist.yaml"
 
 Training our approach
 
-```
+```bash
 cd src
 python main_train_ours.py --config_path=../configs/ours_mnist.yaml 
 python main_train_ours.py --config_path=../configs/ours_5hdb.yaml
@@ -65,11 +78,30 @@ configuration file is located here: ''configs/ours_mnist.yaml"
 
 
 
-To execute the original code:
+Pretrained models:
+
+https://drive.google.com/file/d/1B0yNaKkltrXUyjogTaH-mH85cbkggy_a/view?usp=sharing
+
+
+
+# Ablation experiments
+
+The most basic method
 
 ```bash
-cd externals/spatial_vae
-python train_mnist.py --no-translate --minibatch-size 128
+python main_train_ours.py --config_path=../configs/ours_5hdb.yaml architecture=fc use_wasserstein=false 
+```
+
+Using DCGAN
+
+```bash
+python main_train_ours.py --config_path=../configs/ours_5hdb.yaml architecture=cnn use_wasserstein=false 
+```
+
+DCGAN + Wasserstein
+
+```bash
+python main_train_ours.py --config_path=../configs/ours_5hdb.yaml architecture=cnn use_wasserstein=true 
 ```
 
 
