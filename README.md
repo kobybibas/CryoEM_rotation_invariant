@@ -1,12 +1,9 @@
-# Deep Learning Medical Imagin Project: Tel-Aviv Universty
+# Deep Learning Medical Imaging Project: Tel-Aviv Universty
 
 Learning to seperate pose and staracture using GAN.
 
-```
-![antibody_gif](gifs/antibody_spatial.gif)
-```
+![5HDB_gif](output/animations/roation_animation.gif)
 
-<img src="/Users/kobibi/WorkDocs/medical_imaging_project/output/animations/roation_animation.gif" alt="rotation_anim" style="zoom:100%;" />
 
 ## Setup
 
