@@ -9,11 +9,11 @@ num_epochs: 300                 # Number of training epochs
 discriminator_idle_freq: 4      # Number of batches in which the discriminator (critic) is not updated (default 5)
 generator_idle_freq: 1          # Number of batches in which the generator is not updated (default 1)
 weight_decay: 1e-5              # L2 penalty
-last_activation: fc             # last activation layer of the generator. fc for 5hdb and tanh for MNIST.
 
 # Architecture
 z_dim: 32                       # Latent variable dimension
 architecture: cnn               # Which architecture to use (cnn or fc). cnn for DCGAN.
+last_activation: fc             # last activation layer of the generator. fc for 5hdb and sigmoid for MNIST.
 use_wasserstein: true
 
 # Visualization and debug

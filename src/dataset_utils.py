@@ -189,5 +189,6 @@ class EM_5HDB(VisionDataset):
 
 
 if __name__ == '__main__':
+    trainset = MnistRotate('../data', train=True, download=True, transform=transform_mnist)
     dataset = EM_5HDB('../data')
     print(dataset[0])

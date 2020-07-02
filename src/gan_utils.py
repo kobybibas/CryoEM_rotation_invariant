@@ -34,7 +34,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, latent_dim, img_shape, last_activ='tanh'):
+    def __init__(self, latent_dim, img_shape, last_activ='sigmoid'):
         super(Decoder, self).__init__()
         self.img_shape = img_shape
         self.last_activation = last_activ
@@ -58,6 +58,8 @@ class Decoder(nn.Module):
         img = self.model(z)
         if self.last_activation == 'tanh':
             img = torch.tanh(img)
+        elif self.last_activation == 'sigmoid':  # values between 0 and 1
+            img = torch.sigmoid(img)
         img = img.view(img.size(0), *self.img_shape)
         return img
 
@@ -90,7 +92,7 @@ class Discriminator(nn.Module):
 class DecoderCNN(nn.Module):
     # based on DCGAN
 
-    def __init__(self, latent_dim, img_shape, featmap_dim=64, n_channel=1, last_activ='tanh'):
+    def __init__(self, latent_dim, img_shape, featmap_dim=64, n_channel=1, last_activ='sigmoid'):
         super(DecoderCNN, self).__init__()
         self.featmap_dim = featmap_dim
         self.latent_dim = latent_dim
@@ -129,8 +131,10 @@ class DecoderCNN(nn.Module):
         x = F.leaky_relu(self.BN2(self.conv2(x)), negative_slope=0.2)
         x = self.conv3(x)
 
-        if self.last_activation == 'tanh':
+        if self.last_activation == 'tanh':  # values between -1 to 1
             x = torch.tanh(x)
+        elif self.last_activation == 'sigmoid':  # values between 0 and 1
+            x = torch.sigmoid(x)
 
         return x
 
