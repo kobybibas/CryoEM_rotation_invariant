@@ -77,7 +77,7 @@ configuration file is located here: ''configs/ours_mnist.yaml"
 
 Pretrained models:
 
-https://drive.google.com/file/d/1B0yNaKkltrXUyjogTaH-mH85cbkggy_a/view?usp=sharing
+https://drive.google.com/file/d/1HoFbyV8I8AwBNFtlURWzrwdzk1__Asmx/view?usp=sharing
 
 
 
