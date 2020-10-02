@@ -1,4 +1,4 @@
-# Deep Learning Medical Imaging Project: Tel-Aviv Universty
+# Learning Rotation Invariant Features for Cryogenic Electron Microscopy Images
 
 Learning to seperate pose and staracture using GAN.
 
